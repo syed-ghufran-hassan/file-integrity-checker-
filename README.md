@@ -4,6 +4,9 @@ A browser-based cybersecurity tool that generates SHA-256 hashes to help verify 
 
 A simple browser-based cybersecurity tool that generates a SHA-256 hash for a selected file.
 
+
+
+
 ## 📌 About
 
 File Integrity Checker helps users verify whether a file has been modified by comparing its SHA-256 cryptographic hash.
