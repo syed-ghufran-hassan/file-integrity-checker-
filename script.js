@@ -20,49 +20,71 @@ fileInput.addEventListener("change", function () {
     result.textContent = "SHA-256 hash will appear here.";
 });
 
+const workerSource = `
+self.onmessage = async (event) => {
+    const file = event.data;
+    try {
+        const buffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+            .map(byte => byte.toString(16).padStart(2, "0"))
+            .join("");
+        self.postMessage({ ok: true, hash: hashHex });
+    } catch (error) {
+        self.postMessage({ ok: false, error: error.message });
+    }
+};
+`;
 
-checkBtn.addEventListener("click", async function () {
+checkBtn.addEventListener("click", function () {
 
     const file = fileInput.files[0];
 
     if (!file) {
-        result.textContent = "⚠️ Please select a file first.";
+        result.textContent = " Please select a file first.";
         return;
     }
 
-    result.textContent = "⏳ Calculating SHA-256...";
+    result.textContent = " Calculating SHA-256...";
+    checkBtn.disabled = true;
 
-    try {
+    const workerURL = URL.createObjectURL(
+        new Blob([workerSource], { type: "text/javascript" })
+    );
 
-        const buffer = await file.arrayBuffer();
+    const worker = new Worker(workerURL);
 
-        const hashBuffer = await crypto.subtle.digest(
-            "SHA-256",
-            buffer
-        );
+    const cleanup = () => {
+        worker.terminate();
+        URL.revokeObjectURL(workerURL);
+        checkBtn.disabled = false;
+    };
 
-        const hashArray = Array.from(
-            new Uint8Array(hashBuffer)
-        );
+    worker.onmessage = (event) => {
 
-        const hashHex = hashArray
-            .map(byte => byte.toString(16).padStart(2, "0"))
-            .join("");
+        const { ok, hash, error } = event.data;
 
-        result.innerHTML = `
-            <strong>SHA-256:</strong><br><br>
-            ${hashHex}
-        `;
+        if (ok) {
+            result.innerHTML = `
+                <strong>SHA-256:</strong><br><br>
+                ${hash}
+            `;
+        } else {
+            result.textContent = " Unable to calculate file hash.";
+            console.error(error);
+        }
 
-    } catch (error) {
+        cleanup();
+    };
 
-        result.textContent =
-            "❌ Unable to calculate file hash.";
-
+    worker.onerror = (error) => {
+        result.textContent = " Unable to calculate file hash.";
         console.error(error);
-    }
-});
+        cleanup();
+    };
 
+    worker.postMessage(file);
+});
 
 function formatFileSize(bytes) {
 
